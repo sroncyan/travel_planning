@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="行きたい場所と滞在時間から、旅行のタイムテーブルをかんたんに作成できます。">
+  <meta name="description" content="行きたい場所と開始・終了時刻から、旅行のタイムテーブルをかんたんに作成できます。">
   <title>Travel — 旅の一日を、きれいに整える。</title>
   <style>
     :root {
@@ -106,6 +106,7 @@
       transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
     }
     .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { cursor: not-allowed; opacity: .48; transform: none; }
     .btn-primary {
       color: #fff;
       background: var(--coral);
@@ -287,8 +288,7 @@
 
     .workspace { display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(380px, .96fr); gap: 18px; align-items: start; }
     .day-editor { padding: 24px; }
-    .day-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
-    .places-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 22px 0 13px; }
+    .places-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 13px; }
     .places-head h3 { margin: 0; font-size: 1rem; }
     .places-list { display: grid; gap: 10px; }
     .place-card {
@@ -394,7 +394,7 @@
       .section-head, .editor-top { align-items: stretch; flex-direction: column; }
       .editor-actions { justify-content: start; }
       .trip-basics, .day-editor { padding: 18px; }
-      .form-grid, .day-settings, .modal-grid { grid-template-columns: 1fr; }
+      .form-grid, .modal-grid { grid-template-columns: 1fr; }
       .field-wide { grid-column: auto; }
       .place-card { grid-template-columns: 34px 1fr; }
       .place-actions { grid-column: 1 / -1; justify-content: end; padding-top: 7px; border-top: 1px solid var(--line); }
@@ -442,7 +442,7 @@
         <div>
           <p class="eyebrow">Travel planner</p>
           <h1>旅の一日を、<br>きれいに整える。</h1>
-          <p class="hero-copy">行きたい場所と滞在時間を入れるだけ。移動も空き時間もひと目でわかる、自分だけの旅のしおりを作りましょう。</p>
+          <p class="hero-copy">行きたい場所と開始・終了時刻を入れるだけ。空き時間もひと目でわかる、自分だけの旅のしおりを作りましょう。</p>
           <button class="btn btn-primary" id="hero-new-button" type="button">最初の旅を計画する <span aria-hidden="true">→</span></button>
         </div>
         <div class="sample-card" aria-label="タイムテーブルのサンプル">
@@ -528,20 +528,6 @@
           <div class="panel-title">
             <h2 id="day-editor-title"><span class="step-label">2</span><span id="selected-day-label">1日目の予定</span></h2>
           </div>
-          <div class="day-settings">
-            <div class="field">
-              <label for="day-start-time">一日の開始</label>
-              <input id="day-start-time" data-day-field="startTime" type="time">
-            </div>
-            <div class="field">
-              <label for="day-end-time">終了の目安</label>
-              <input id="day-end-time" data-day-field="targetEndTime" type="time">
-            </div>
-            <div class="field">
-              <label for="day-departure">出発地点</label>
-              <input id="day-departure" data-day-field="departurePoint" maxlength="100" placeholder="例：ホテル">
-            </div>
-          </div>
           <div class="places-head">
             <h3>立ち寄る場所</h3>
             <button class="btn btn-soft" id="add-place-button" type="button">＋ 場所を追加</button>
@@ -576,7 +562,7 @@
         <input id="place-id" type="hidden">
         <div class="modal-grid">
           <div class="field field-wide">
-            <label for="place-name">場所・予定名 *</label>
+            <label for="place-name">予定・場所名 *</label>
             <input id="place-name" maxlength="100" required placeholder="例：清水寺">
             <p class="field-error" id="place-name-error"></p>
           </div>
@@ -596,20 +582,12 @@
             <input id="place-location" maxlength="200" placeholder="例：京都市東山区">
           </div>
           <div class="field">
-            <label for="place-duration">滞在時間（分） *</label>
-            <input id="place-duration" type="number" min="5" max="1440" step="5" value="60" required>
+            <label for="place-start-time">開始時刻 *</label>
+            <input id="place-start-time" type="time" required>
           </div>
           <div class="field">
-            <label for="place-travel">次の場所までの移動（分）</label>
-            <input id="place-travel" type="number" min="0" max="1440" step="5" value="0">
-          </div>
-          <label class="fixed-row">
-            <input id="place-is-fixed" type="checkbox">
-            <span>開始時刻を固定する</span>
-          </label>
-          <div class="field" id="fixed-time-field" hidden>
-            <label for="place-fixed-time">固定開始時刻 *</label>
-            <input id="place-fixed-time" type="time">
+            <label for="place-end-time">終了時刻 *</label>
+            <input id="place-end-time" type="time" required>
           </div>
           <div class="field field-wide">
             <label for="place-memo">メモ</label>

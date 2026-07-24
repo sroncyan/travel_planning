@@ -37,8 +37,7 @@ function cacheElements() {
     "warnings", "timeline", "preview-title", "preview-date", "preview-count",
     "preview-duration", "place-dialog", "place-form", "place-dialog-title",
     "place-id", "place-name", "place-name-error", "place-category",
-    "place-location", "place-duration", "place-travel", "place-is-fixed",
-    "place-fixed-time", "fixed-time-field", "place-memo", "confirm-dialog",
+    "place-location", "place-start-time", "place-end-time", "place-memo", "confirm-dialog",
     "confirm-title", "confirm-message", "confirm-ok", "toast",
   ].forEach((id) => { el[id] = document.getElementById(id); });
 }
@@ -62,7 +61,6 @@ function bindEvents() {
   document.getElementById("cancel-place-button").addEventListener("click", closePlaceDialog);
   document.getElementById("confirm-cancel").addEventListener("click", () => el["confirm-dialog"].close());
   el["confirm-ok"].addEventListener("click", executeConfirmedAction);
-  el["place-is-fixed"].addEventListener("change", toggleFixedTime);
   el["place-form"].addEventListener("submit", savePlaceFromDialog);
 
   document.querySelectorAll("[data-trip-field]").forEach((input) => {
@@ -72,6 +70,15 @@ function bindEvents() {
   document.querySelectorAll("[data-day-field]").forEach((input) => {
     input.addEventListener("input", handleDayField);
     input.addEventListener("change", handleDayField);
+  });
+  document.querySelectorAll("input[placeholder], textarea[placeholder]").forEach((field) => {
+    field.dataset.originalPlaceholder = field.placeholder;
+    field.addEventListener("focus", () => {
+      field.placeholder = "";
+    });
+    field.addEventListener("blur", () => {
+      field.placeholder = field.dataset.originalPlaceholder;
+    });
   });
 
   el["day-tabs"].addEventListener("click", handleDayTabClick);
@@ -121,16 +128,13 @@ function persistListImmediately() {
 }
 
 function createNewTrip() {
-  const today = new Date();
-  const end = new Date(today);
-  end.setDate(end.getDate() + 1);
   const now = new Date().toISOString();
   state.currentTrip = {
     id: uid("trip"),
     title: "",
     destination: "",
-    startDate: toISODate(today),
-    endDate: toISODate(end),
+    startDate: "",
+    endDate: "",
     memo: "",
     createdAt: now,
     updatedAt: now,
@@ -188,7 +192,7 @@ function renderTripList() {
       const card = create("article", "trip-card");
       const number = daysBetween(trip.startDate, trip.endDate) + 1;
       card.append(
-        create("span", "mini-chip", `${Math.max(1, number)}日間`),
+        create("span", "mini-chip", trip.startDate && trip.endDate ? `${Math.max(1, number)}日間` : "日程未設定"),
         create("h3", "", trip.title.trim() || "名称未設定の旅行"),
         create("p", "", trip.destination.trim() || "目的地はまだ未設定です"),
         create("p", "date-range", `${formatDateShort(trip.startDate)} — ${formatDateShort(trip.endDate)}`),
@@ -227,6 +231,7 @@ function renderEditor() {
 
 function renderDayTabs() {
   el["day-tabs"].replaceChildren();
+  if (!validDateRange(state.currentTrip)) return;
   state.currentTrip.days.forEach((day, index) => {
     const button = create("button", `day-tab${index === state.currentDayIndex ? " active" : ""}`);
     button.type = "button";
@@ -241,14 +246,36 @@ function renderDayTabs() {
 }
 
 function renderCurrentDay() {
+  if (!validDateRange(state.currentTrip)) {
+    renderNoDaySelected();
+    return;
+  }
   const day = getCurrentDay();
-  if (!day) return;
-  document.getElementById("day-start-time").value = day.startTime || "09:00";
-  document.getElementById("day-end-time").value = day.targetEndTime || "18:00";
-  document.getElementById("day-departure").value = day.departurePoint || "";
+  if (!day) {
+    renderNoDaySelected();
+    return;
+  }
+  document.getElementById("add-place-button").disabled = false;
+  ensureScheduleTimes(day);
   el["selected-day-label"].textContent = `${state.currentDayIndex + 1}日目の予定`;
   renderPlaces();
   renderPreview();
+}
+
+function renderNoDaySelected() {
+  el["selected-day-label"].textContent = "旅行期間を選択してください";
+  document.getElementById("add-place-button").disabled = true;
+  el["places-list"].replaceChildren(
+    create("div", "places-empty", "先に出発日と帰着日を選択してください。"),
+  );
+  el["preview-title"].textContent = "タイムテーブル";
+  el["preview-date"].textContent = "旅行期間を選択してください";
+  el["warnings"].replaceChildren();
+  el["timeline"].replaceChildren(
+    create("div", "timeline-empty", "日程を選択すると、日ごとの予定を入力できます。"),
+  );
+  el["preview-count"].textContent = "予定 0件";
+  el["preview-duration"].textContent = "所要時間 0分";
 }
 
 function renderPlaces() {
@@ -258,7 +285,7 @@ function renderPlaces() {
     const empty = create("div", "places-empty");
     empty.append(
       create("strong", "", "立ち寄る場所を追加しましょう"),
-      create("div", "", "滞在時間と移動時間から、予定表を自動で計算します。"),
+      create("div", "", "予定・場所と開始・終了時刻を入力してください。"),
     );
     el["places-list"].append(empty);
     return;
@@ -270,24 +297,24 @@ function renderPlaces() {
     const main = create("div", "place-main");
     const name = create("div", "place-name");
     name.append(create("span", "category-dot"), create("strong", "", place.name));
-    const fixed = place.isFixedTime ? ` · ${place.fixedStartTime}固定` : "";
     main.append(
       name,
-      create("div", "place-meta", `${categoryLabels[place.category]} · 滞在 ${formatDuration(place.durationMinutes)} · 次へ ${formatDuration(place.travelMinutesToNext)}${fixed}`),
+      create("div", "place-meta", `${place.startTime} — ${place.endTime} · ${categoryLabels[place.category]}${place.location ? ` · ${place.location}` : ""}`),
     );
     const actions = create("div", "place-actions");
     [
       ["↑", "up", "上へ移動"],
       ["↓", "down", "下へ移動"],
-      ["複製", "duplicate", "複製"],
-      ["編集", "edit", "編集"],
-      ["×", "delete", "削除"],
+      ["⧉", "duplicate", "複製"],
+      ["✎", "edit", "編集"],
+      ["🗑", "delete", "削除"],
     ].forEach(([label, action, aria]) => {
       const button = create("button", "icon-btn", label);
       button.type = "button";
       button.dataset.action = action;
       button.dataset.id = place.id;
       button.setAttribute("aria-label", `${place.name}を${aria}`);
+      button.title = aria;
       if ((action === "up" && index === 0) || (action === "down" && index === day.places.length - 1)) {
         button.disabled = true;
       }
@@ -303,7 +330,7 @@ function renderPreview() {
   if (!day) return;
   const result = calculateTimeline(day);
   el["preview-title"].textContent = `${state.currentDayIndex + 1}日目のタイムテーブル`;
-  el["preview-date"].textContent = `${formatDateLong(day.date)}${day.departurePoint ? ` · ${day.departurePoint}から` : ""}`;
+  el["preview-date"].textContent = formatDateLong(day.date);
   el["warnings"].replaceChildren();
   result.warnings.forEach((warning) => {
     el["warnings"].append(create("div", `warning${warning.type === "error" ? " error" : ""}`, warning.message));
@@ -333,7 +360,7 @@ function createTimelineRow(item) {
   const content = create("div", "timeline-content");
   if (item.type === "place") {
     content.append(create("strong", "", item.place.name));
-    content.append(create("p", "", `${categoryLabels[item.place.category]} · 滞在 ${formatDuration(item.place.durationMinutes)}`));
+    content.append(create("p", "", `${categoryLabels[item.place.category]} · ${formatDuration(item.end - item.start)}`));
     if (item.place.location) content.append(create("p", "location", `⌖ ${item.place.location}`));
     if (item.place.memo) content.append(create("p", "", item.place.memo));
   } else if (item.type === "travel") {
@@ -348,48 +375,40 @@ function createTimelineRow(item) {
 function calculateTimeline(day) {
   const items = [];
   const warnings = [];
-  const dayStart = timeToMinutes(day.startTime || "09:00");
-  const targetEnd = timeToMinutes(day.targetEndTime || "18:00");
-  let current = dayStart;
+  let firstStart = null;
+  let currentEnd = null;
 
   day.places.forEach((place) => {
-    if (place.isFixedTime && place.fixedStartTime) {
-      let fixed = timeToMinutes(place.fixedStartTime);
-      if (fixed < dayStart && current >= dayStart) fixed += 1440;
-      if (fixed > current) {
-        items.push({ type: "free", start: current, end: fixed, duration: fixed - current });
-      } else if (fixed < current) {
-        warnings.push({
-          type: "error",
-          message: `「${place.name}」は前の予定と${formatDuration(current - fixed)}重なっています。`,
-        });
-      }
-      current = fixed;
+    let start = timeToMinutes(place.startTime);
+    let end = timeToMinutes(place.endTime);
+    if (end <= start) end += 1440;
+    if (currentEnd !== null && currentEnd >= 1440 && start < 1440) start += 1440;
+    firstStart = firstStart === null ? start : Math.min(firstStart, start);
+
+    if (currentEnd !== null && start > currentEnd) {
+      items.push({ type: "free", start: currentEnd, end: start, duration: start - currentEnd });
+    } else if (currentEnd !== null && start < currentEnd) {
+      warnings.push({
+        type: "error",
+        message: `「${place.name}」は前の予定と${formatDuration(currentEnd - start)}重なっています。`,
+      });
     }
 
-    const end = current + Number(place.durationMinutes);
-    items.push({ type: "place", start: current, end, place });
-    current = end;
-    const travel = Number(place.travelMinutesToNext) || 0;
-    if (travel > 0) {
-      items.push({ type: "travel", start: current, end: current + travel, duration: travel });
-      current += travel;
-    }
+    items.push({ type: "place", start, end, place });
+    currentEnd = currentEnd === null ? end : Math.max(currentEnd, end);
   });
 
-  if (day.places.length && current > targetEnd && targetEnd >= dayStart) {
+  if (currentEnd !== null && currentEnd >= 1440) {
     warnings.push({
       type: "warning",
-      message: `終了の目安を${formatDuration(current - targetEnd)}超えています。`,
+      message: `予定が翌日の${formatClock(currentEnd)}まで続きます。`,
     });
   }
-  if (current >= 1440) {
-    warnings.push({
-      type: "warning",
-      message: `予定が翌日の${formatClock(current)}まで続きます。`,
-    });
-  }
-  return { items, warnings, totalMinutes: Math.max(0, current - dayStart) };
+  return {
+    items,
+    warnings,
+    totalMinutes: firstStart === null ? 0 : Math.max(0, currentEnd - firstStart),
+  };
 }
 
 function handleTripField(event) {
@@ -399,22 +418,24 @@ function handleTripField(event) {
   const oldEnd = state.currentTrip.endDate;
   state.currentTrip[field] = event.target.value;
 
-  if ((field === "startDate" || field === "endDate") && validDateRange(state.currentTrip)) {
-    const wouldRemove = state.currentTrip.days.some(
-      (day) => day.date < state.currentTrip.startDate || day.date > state.currentTrip.endDate,
-    );
-    const hasPlansToRemove = state.currentTrip.days.some(
-      (day) => (day.date < state.currentTrip.startDate || day.date > state.currentTrip.endDate) && day.places.length,
-    );
-    if (wouldRemove && hasPlansToRemove && !window.confirm("期間外になる日の予定が削除されます。日付を変更しますか？")) {
-      state.currentTrip.startDate = oldStart;
-      state.currentTrip.endDate = oldEnd;
-      document.getElementById("trip-start-date").value = oldStart;
-      document.getElementById("trip-end-date").value = oldEnd;
-      return;
+  if (field === "startDate" || field === "endDate") {
+    if (validDateRange(state.currentTrip)) {
+      const hasPlansToRemove = state.currentTrip.days.some(
+        (day) => (
+          day.date < state.currentTrip.startDate
+          || day.date > state.currentTrip.endDate
+        ) && day.places.length,
+      );
+      if (hasPlansToRemove && !window.confirm("期間外になる日の予定が削除されます。日付を変更しますか？")) {
+        state.currentTrip.startDate = oldStart;
+        state.currentTrip.endDate = oldEnd;
+        document.getElementById("trip-start-date").value = oldStart;
+        document.getElementById("trip-end-date").value = oldEnd;
+        return;
+      }
+      syncTripDays();
+      state.currentDayIndex = Math.max(0, Math.min(state.currentDayIndex, state.currentTrip.days.length - 1));
     }
-    syncTripDays();
-    state.currentDayIndex = Math.min(state.currentDayIndex, state.currentTrip.days.length - 1);
   }
 
   el["editor-title"].textContent = state.currentTrip.title.trim() || "新しい旅行";
@@ -484,19 +505,19 @@ function handlePlaceAction(event) {
 }
 
 function openPlaceDialog(place = null) {
+  const day = getCurrentDay();
+  const defaultStart = nextAvailableStartTime(day);
+  const defaultEnd = addMinutesToTime(defaultStart, 60);
   state.editingPlaceId = place?.id || null;
   el["place-dialog-title"].textContent = place ? "予定を編集" : "場所を追加";
   el["place-id"].value = place?.id || "";
   el["place-name"].value = place?.name || "";
   el["place-category"].value = place?.category || "sightseeing";
   el["place-location"].value = place?.location || "";
-  el["place-duration"].value = place?.durationMinutes ?? 60;
-  el["place-travel"].value = place?.travelMinutesToNext ?? 0;
-  el["place-is-fixed"].checked = Boolean(place?.isFixedTime);
-  el["place-fixed-time"].value = place?.fixedStartTime || "";
+  el["place-start-time"].value = place?.startTime || defaultStart;
+  el["place-end-time"].value = place?.endTime || defaultEnd;
   el["place-memo"].value = place?.memo || "";
   el["place-name-error"].textContent = "";
-  toggleFixedTime();
   el["place-dialog"].showModal();
   setTimeout(() => el["place-name"].focus(), 0);
 }
@@ -506,34 +527,29 @@ function closePlaceDialog() {
   state.editingPlaceId = null;
 }
 
-function toggleFixedTime() {
-  const enabled = el["place-is-fixed"].checked;
-  el["fixed-time-field"].hidden = !enabled;
-  el["place-fixed-time"].required = enabled;
-}
-
 function savePlaceFromDialog(event) {
   event.preventDefault();
   const name = el["place-name"].value.trim();
-  const duration = Number(el["place-duration"].value);
-  const travel = Number(el["place-travel"].value || 0);
-  const isFixed = el["place-is-fixed"].checked;
+  const startTime = el["place-start-time"].value;
+  const endTime = el["place-end-time"].value;
   if (!name) {
     el["place-name-error"].textContent = "場所・予定名を入力してください。";
     el["place-name"].focus();
     return;
   }
-  if (!Number.isInteger(duration) || duration < 5 || duration > 1440) {
-    showToast("滞在時間は5〜1,440分の整数で入力してください。");
+  if (!startTime) {
+    showToast("開始時刻を入力してください。");
+    el["place-start-time"].focus();
     return;
   }
-  if (!Number.isInteger(travel) || travel < 0 || travel > 1440) {
-    showToast("移動時間は0〜1,440分の整数で入力してください。");
+  if (!endTime) {
+    showToast("終了時刻を入力してください。");
+    el["place-end-time"].focus();
     return;
   }
-  if (isFixed && !el["place-fixed-time"].value) {
-    showToast("固定開始時刻を入力してください。");
-    el["place-fixed-time"].focus();
+  if (startTime === endTime) {
+    showToast("開始時刻と終了時刻は異なる時刻にしてください。");
+    el["place-end-time"].focus();
     return;
   }
 
@@ -541,10 +557,8 @@ function savePlaceFromDialog(event) {
     id: state.editingPlaceId || uid("place"),
     name,
     category: el["place-category"].value,
-    durationMinutes: duration,
-    travelMinutesToNext: travel,
-    isFixedTime: isFixed,
-    fixedStartTime: isFixed ? el["place-fixed-time"].value : null,
+    startTime,
+    endTime,
     location: el["place-location"].value.trim(),
     memo: el["place-memo"].value.trim(),
   };
@@ -552,6 +566,7 @@ function savePlaceFromDialog(event) {
   const index = day.places.findIndex((item) => item.id === place.id);
   if (index >= 0) day.places[index] = place;
   else day.places.push(place);
+  day.places.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   closePlaceDialog();
   renderPlaces();
   renderPreview();
@@ -596,6 +611,40 @@ function executeConfirmedAction() {
   el["confirm-dialog"].close();
 }
 
+function ensureScheduleTimes(day) {
+  let cursor = timeToMinutes(day.startTime || "09:00");
+  day.places.forEach((place) => {
+    if (!place.startTime) {
+      place.startTime = place.fixedStartTime || minutesToTimeValue(cursor);
+    }
+    const start = timeToMinutes(place.startTime);
+    if (!place.endTime) {
+      const duration = Number(place.durationMinutes) || 60;
+      place.endTime = minutesToTimeValue(start + duration);
+    }
+    let end = timeToMinutes(place.endTime);
+    if (end <= start) end += 1440;
+    cursor = end + (Number(place.travelMinutesToNext) || 0);
+  });
+}
+
+function nextAvailableStartTime(day) {
+  if (!day?.places?.length) return "09:00";
+  ensureScheduleTimes(day);
+  return day.places[day.places.length - 1].endTime || "09:00";
+}
+
+function addMinutesToTime(value, minutes) {
+  return minutesToTimeValue(timeToMinutes(value) + minutes);
+}
+
+function minutesToTimeValue(totalMinutes) {
+  const withinDay = ((totalMinutes % 1440) + 1440) % 1440;
+  const hours = String(Math.floor(withinDay / 60)).padStart(2, "0");
+  const minutes = String(withinDay % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 function syncTripDays() {
   const trip = state.currentTrip;
   if (!trip || !validDateRange(trip)) return;
@@ -618,8 +667,8 @@ function validateTrip() {
   let valid = true;
   valid = setFieldError("trip-title", !trip.title.trim() ? "旅行名を入力してください。" : "") && valid;
   valid = setFieldError("trip-destination", !trip.destination.trim() ? "目的地を入力してください。" : "") && valid;
-  valid = setFieldError("trip-start-date", !trip.startDate ? "出発日を入力してください。" : "") && valid;
-  let endError = !trip.endDate ? "帰着日を入力してください。" : "";
+  valid = setFieldError("trip-start-date", !trip.startDate ? "出発日を選択してください。" : "") && valid;
+  let endError = !trip.endDate ? "帰着日を選択してください。" : "";
   if (!endError && trip.startDate && trip.endDate < trip.startDate) endError = "帰着日は出発日以降にしてください。";
   valid = setFieldError("trip-end-date", endError) && valid;
   return valid;
