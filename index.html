@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="行きたい場所と滞在時間から、旅行のタイムテーブルをかんたんに作成できます。">
+  <title>Tabiori — 旅の一日を、きれいに整える。</title>
+  <style>
+    :root {
+      --navy: #183153;
+      --navy-deep: #10243e;
+      --coral: #f0785f;
+      --coral-dark: #d95d47;
+      --cream: #f7f3eb;
+      --paper: #fffdf9;
+      --sand: #e9e0d2;
+      --ink: #213047;
+      --muted: #718096;
+      --line: #e7e0d7;
+      --green: #3d8063;
+      --green-soft: #e9f4ee;
+      --amber: #a96b14;
+      --amber-soft: #fff4df;
+      --red: #b54242;
+      --red-soft: #fff0ed;
+      --shadow: 0 18px 55px rgba(24, 49, 83, .09);
+      --shadow-sm: 0 8px 24px rgba(24, 49, 83, .08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(240, 120, 95, .09), transparent 27rem),
+        var(--cream);
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+      line-height: 1.6;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 3px solid rgba(240, 120, 95, .35);
+      outline-offset: 2px;
+    }
+    [hidden] { display: none !important; }
+
+    .app-header {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 72px;
+      padding: 0 4vw;
+      color: #fff;
+      background: rgba(16, 36, 62, .97);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(15px);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      border: 0;
+      color: inherit;
+      background: transparent;
+      font-family: Georgia, "Yu Mincho", serif;
+      font-size: 1.42rem;
+      font-weight: 700;
+      letter-spacing: .03em;
+    }
+    .brand-mark {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      color: var(--navy-deep);
+      background: var(--coral);
+      border-radius: 50% 50% 50% 8px;
+      transform: rotate(-5deg);
+    }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .save-status {
+      min-width: 72px;
+      color: #bfcbd9;
+      font-size: .78rem;
+      text-align: right;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 9px 16px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-weight: 700;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary {
+      color: #fff;
+      background: var(--coral);
+      box-shadow: 0 7px 18px rgba(240, 120, 95, .24);
+    }
+    .btn-primary:hover { background: var(--coral-dark); }
+    .btn-secondary { color: var(--navy); background: #fff; border-color: var(--line); }
+    .btn-ghost { color: inherit; background: transparent; border-color: rgba(255,255,255,.22); }
+    .btn-soft { color: var(--navy); background: #edf1f5; }
+    .btn-danger { color: var(--red); background: var(--red-soft); }
+    .icon-btn {
+      display: inline-grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border: 1px solid var(--line);
+      color: var(--navy);
+      background: #fff;
+      border-radius: 10px;
+    }
+    .icon-btn:hover { background: #f2f5f7; }
+
+    .page { width: min(1440px, 92vw); margin: 0 auto; }
+    .home-view { padding: 54px 0 80px; }
+    .hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
+      gap: clamp(30px, 6vw, 90px);
+      align-items: center;
+      min-height: 420px;
+      overflow: hidden;
+      padding: clamp(36px, 6vw, 84px);
+      color: #fff;
+      background: var(--navy);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+    }
+    .hero::after {
+      position: absolute;
+      right: -80px;
+      bottom: -125px;
+      width: 380px;
+      height: 380px;
+      border: 80px solid rgba(255,255,255,.035);
+      border-radius: 50%;
+      content: "";
+    }
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--coral);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+    .hero h1 {
+      max-width: 700px;
+      margin: 0;
+      font-family: Georgia, "Yu Mincho", serif;
+      font-size: clamp(2.25rem, 5vw, 4.9rem);
+      font-weight: 600;
+      line-height: 1.12;
+      letter-spacing: -.035em;
+    }
+    .hero-copy {
+      max-width: 600px;
+      margin: 22px 0 30px;
+      color: #d8e0e9;
+      font-size: 1rem;
+    }
+    .sample-card {
+      position: relative;
+      z-index: 2;
+      padding: 24px;
+      color: var(--ink);
+      background: var(--paper);
+      border-radius: 22px;
+      box-shadow: 0 25px 60px rgba(0,0,0,.21);
+      transform: rotate(1.5deg);
+    }
+    .sample-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .sample-head strong { font-family: Georgia, "Yu Mincho", serif; font-size: 1.2rem; }
+    .mini-chip { padding: 4px 9px; color: var(--green); background: var(--green-soft); border-radius: 999px; font-size: .72rem; font-weight: 700; }
+    .sample-row { display: grid; grid-template-columns: 55px 14px 1fr; gap: 8px; min-height: 72px; }
+    .sample-time { padding-top: 1px; color: var(--navy); font-size: .8rem; font-weight: 800; }
+    .sample-line { position: relative; border-left: 1px solid #cfd8df; }
+    .sample-line::before { position: absolute; top: 5px; left: -5px; width: 9px; height: 9px; background: var(--coral); border: 2px solid #fff; border-radius: 50%; content: ""; }
+    .sample-place strong { display: block; font-size: .9rem; }
+    .sample-place span { color: var(--muted); font-size: .75rem; }
+
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin: 54px 0 20px; }
+    .section-head h2 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: clamp(1.5rem, 3vw, 2.15rem); }
+    .section-head p { margin: 5px 0 0; color: var(--muted); }
+    .trip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px; }
+    .trip-card {
+      position: relative;
+      overflow: hidden;
+      padding: 24px;
+      background: var(--paper);
+      border: 1px solid rgba(231,224,215,.85);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+    .trip-card::before { position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--coral); content: ""; }
+    .trip-card h3 { margin: 11px 0 4px; font-family: Georgia, "Yu Mincho", serif; font-size: 1.35rem; }
+    .trip-card p { margin: 0; color: var(--muted); font-size: .88rem; }
+    .trip-card .date-range { margin-top: 16px; color: var(--navy); font-weight: 800; }
+    .card-actions { display: flex; gap: 8px; margin-top: 20px; }
+    .empty-state {
+      padding: 52px 24px;
+      border: 1px dashed #cfc5b7;
+      color: var(--muted);
+      background: rgba(255,255,255,.45);
+      border-radius: var(--radius);
+      text-align: center;
+    }
+    .empty-icon { display: grid; width: 62px; height: 62px; margin: 0 auto 15px; place-items: center; color: var(--coral); background: #fff; border-radius: 50%; font-size: 1.7rem; }
+
+    .editor-view { padding: 30px 0 70px; }
+    .editor-top {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 28px;
+      margin-bottom: 24px;
+    }
+    .editor-top h1 { margin: 4px 0 3px; font-family: Georgia, "Yu Mincho", serif; font-size: clamp(1.8rem, 3.2vw, 3rem); line-height: 1.15; }
+    .editor-top p { margin: 0; color: var(--muted); }
+    .editor-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }
+
+    .panel {
+      background: rgba(255,253,249,.94);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+    .trip-basics { padding: 24px; margin-bottom: 18px; }
+    .panel-title { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+    .panel-title h2, .panel-title h3 { margin: 0; color: var(--navy); font-size: 1rem; }
+    .step-label { display: inline-grid; width: 25px; height: 25px; margin-right: 8px; place-items: center; color: #fff; background: var(--navy); border-radius: 50%; font-size: .72rem; }
+    .form-grid { display: grid; grid-template-columns: 1.3fr 1fr .8fr .8fr; gap: 14px; }
+    .field { min-width: 0; }
+    .field-wide { grid-column: 1 / -1; }
+    .field label { display: block; margin-bottom: 6px; color: #55657a; font-size: .78rem; font-weight: 800; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid #d8d7d2;
+      color: var(--ink);
+      background: #fff;
+      border-radius: 10px;
+    }
+    .field textarea { min-height: 82px; resize: vertical; }
+    .field input[aria-invalid="true"] { border-color: var(--red); background: #fffafa; }
+    .field-error { min-height: 17px; margin: 3px 0 0; color: var(--red); font-size: .72rem; }
+
+    .day-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 3px 2px 13px;
+      scrollbar-width: thin;
+    }
+    .day-tab {
+      flex: 0 0 auto;
+      min-width: 112px;
+      padding: 11px 15px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: var(--paper);
+      border-radius: 13px;
+      text-align: left;
+    }
+    .day-tab strong { display: block; color: var(--ink); font-size: .87rem; }
+    .day-tab.active { color: #fff; background: var(--navy); border-color: var(--navy); }
+    .day-tab.active strong { color: #fff; }
+
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(380px, .96fr); gap: 18px; align-items: start; }
+    .day-editor { padding: 24px; }
+    .day-settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+    .places-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 22px 0 13px; }
+    .places-head h3 { margin: 0; font-size: 1rem; }
+    .places-list { display: grid; gap: 10px; }
+    .place-card {
+      display: grid;
+      grid-template-columns: 38px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+    .place-number { display: grid; width: 32px; height: 32px; place-items: center; color: var(--navy); background: #eef2f5; border-radius: 10px; font-size: .8rem; font-weight: 900; }
+    .place-main { min-width: 0; }
+    .place-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .place-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .category-dot { flex: 0 0 auto; width: 8px; height: 8px; background: var(--coral); border-radius: 50%; }
+    .place-meta { margin-top: 3px; color: var(--muted); font-size: .77rem; }
+    .place-actions { display: flex; gap: 5px; }
+    .places-empty { padding: 35px 15px; color: var(--muted); background: #faf8f4; border: 1px dashed #d5cdc2; border-radius: 13px; text-align: center; font-size: .86rem; }
+
+    .preview-panel { position: sticky; top: 91px; overflow: hidden; }
+    .preview-head { padding: 22px 24px 17px; color: #fff; background: var(--navy); }
+    .preview-kicker { margin: 0 0 4px; color: #aebdcd; font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .preview-head h2 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: 1.45rem; }
+    .preview-head p { margin: 2px 0 0; color: #c8d2dd; font-size: .8rem; }
+    .warnings { display: grid; gap: 7px; padding: 15px 20px 0; }
+    .warning { padding: 9px 11px; color: var(--amber); background: var(--amber-soft); border-radius: 9px; font-size: .76rem; font-weight: 700; }
+    .warning.error { color: var(--red); background: var(--red-soft); }
+    .timeline { padding: 20px 22px 24px; }
+    .timeline-row { display: grid; grid-template-columns: 74px 22px 1fr; min-height: 80px; }
+    .timeline-time { padding-top: 2px; color: var(--navy); font-size: .8rem; font-weight: 900; line-height: 1.35; }
+    .timeline-time span { display: block; color: #9ba7b5; font-size: .68rem; font-weight: 600; }
+    .timeline-track { position: relative; border-left: 2px solid #e0e5e9; }
+    .timeline-track::before { position: absolute; top: 5px; left: -7px; width: 10px; height: 10px; background: var(--paper); border: 2px solid var(--coral); border-radius: 50%; content: ""; }
+    .timeline-content { padding: 0 0 20px 4px; }
+    .timeline-content strong { display: block; font-size: .93rem; line-height: 1.35; }
+    .timeline-content p { margin: 4px 0 0; color: var(--muted); font-size: .76rem; }
+    .timeline-content .location { color: #53677e; }
+    .timeline-row.travel { min-height: 43px; }
+    .timeline-row.travel .timeline-track::before { width: 7px; height: 7px; left: -5px; border: 0; background: #b7c2cd; }
+    .timeline-row.travel .timeline-content { color: var(--muted); font-size: .74rem; font-weight: 700; }
+    .timeline-row.free { min-height: 50px; }
+    .timeline-row.free .timeline-track::before { border-color: var(--green); }
+    .timeline-row.free .timeline-content { color: var(--green); font-size: .77rem; font-weight: 700; }
+    .timeline-empty { padding: 34px 14px; color: var(--muted); text-align: center; }
+    .preview-footer { display: flex; justify-content: space-between; gap: 12px; padding: 14px 22px; background: #f4f1eb; border-top: 1px solid var(--line); color: var(--muted); font-size: .75rem; }
+
+    .modal {
+      width: min(600px, calc(100vw - 28px));
+      padding: 0;
+      border: 0;
+      background: var(--paper);
+      border-radius: 20px;
+      box-shadow: 0 30px 100px rgba(16,36,62,.32);
+    }
+    .modal::backdrop { background: rgba(12,25,43,.68); backdrop-filter: blur(3px); }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+    .modal-head h2 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: 1.35rem; }
+    .modal-body { padding: 22px 24px; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .fixed-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding-top: 21px; }
+    .fixed-row input { width: 18px; height: 18px; }
+    .modal-actions { display: flex; justify-content: end; gap: 9px; padding: 16px 24px 22px; }
+    .confirm-copy { margin: 0; color: var(--muted); }
+
+    .toast {
+      position: fixed;
+      z-index: 50;
+      right: 22px;
+      bottom: 22px;
+      max-width: min(380px, calc(100vw - 44px));
+      padding: 12px 17px;
+      color: #fff;
+      background: var(--navy-deep);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      font-size: .84rem;
+      transform: translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .sample-card { max-width: 520px; transform: none; }
+      .form-grid { grid-template-columns: 1fr 1fr; }
+      .workspace { grid-template-columns: 1fr; }
+      .preview-panel { position: static; }
+    }
+    @media (max-width: 680px) {
+      .app-header { min-height: 62px; padding: 0 16px; }
+      .brand { font-size: 1.18rem; }
+      .brand-mark { width: 31px; height: 31px; }
+      .header-actions .btn-ghost { display: none; }
+      .page { width: min(100% - 28px, 1440px); }
+      .home-view { padding-top: 20px; }
+      .hero { min-height: auto; padding: 32px 24px; border-radius: 22px; }
+      .hero h1 { font-size: 2.45rem; }
+      .sample-card { padding: 19px; }
+      .section-head, .editor-top { align-items: stretch; flex-direction: column; }
+      .editor-actions { justify-content: start; }
+      .trip-basics, .day-editor { padding: 18px; }
+      .form-grid, .day-settings, .modal-grid { grid-template-columns: 1fr; }
+      .field-wide { grid-column: auto; }
+      .place-card { grid-template-columns: 34px 1fr; }
+      .place-actions { grid-column: 1 / -1; justify-content: end; padding-top: 7px; border-top: 1px solid var(--line); }
+      .modal-body { padding: 18px; }
+      .fixed-row { padding-top: 0; }
+      .timeline { padding: 18px 14px 22px; }
+      .timeline-row { grid-template-columns: 65px 19px 1fr; }
+      .save-status { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+    @media print {
+      body { background: #fff; color: #111; }
+      .app-header, .trip-basics, .day-tabs, .day-editor, .editor-actions, .toast { display: none !important; }
+      .page { width: 100%; }
+      .editor-view { padding: 0; }
+      .editor-top { margin: 0 0 18px; }
+      .workspace { display: block; }
+      .preview-panel { position: static; border: 0; box-shadow: none; }
+      .preview-head { padding: 16px 0; color: #111; background: #fff; border-bottom: 2px solid #222; }
+      .preview-kicker, .preview-head p { color: #444; }
+      .timeline { padding-inline: 0; }
+      .preview-footer { padding-inline: 0; background: #fff; }
+      .timeline-row { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header no-print">
+    <button class="brand" id="brand-button" type="button" aria-label="旅行一覧へ">
+      <span class="brand-mark" aria-hidden="true">⌁</span>
+      <span>Tabiori</span>
+    </button>
+    <div class="header-actions">
+      <span class="save-status" id="save-status" aria-live="polite"></span>
+      <button class="btn btn-ghost" id="header-list-button" type="button">旅行一覧</button>
+      <button class="btn btn-primary" id="header-new-button" type="button">＋ 新しい旅行</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="home-view page" id="home-view">
+      <div class="hero">
+        <div>
+          <p class="eyebrow">Travel planner</p>
+          <h1>旅の一日を、<br>きれいに整える。</h1>
+          <p class="hero-copy">行きたい場所と滞在時間を入れるだけ。移動も空き時間もひと目でわかる、自分だけの旅のしおりを作りましょう。</p>
+          <button class="btn btn-primary" id="hero-new-button" type="button">最初の旅を計画する <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="sample-card" aria-label="タイムテーブルのサンプル">
+          <div class="sample-head">
+            <strong>京都、小さな秋旅</strong>
+            <span class="mini-chip">Day 1</span>
+          </div>
+          <div class="sample-row">
+            <div class="sample-time">09:00</div><div class="sample-line"></div>
+            <div class="sample-place"><strong>京都駅から出発</strong><span>移動 · 25分</span></div>
+          </div>
+          <div class="sample-row">
+            <div class="sample-time">09:25</div><div class="sample-line"></div>
+            <div class="sample-place"><strong>清水寺</strong><span>観光 · 1時間30分</span></div>
+          </div>
+          <div class="sample-row">
+            <div class="sample-time">11:20</div><div class="sample-line"></div>
+            <div class="sample-place"><strong>祇園でお昼ごはん</strong><span>食事 · 1時間</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">My trips</p>
+          <h2>保存した旅行</h2>
+          <p>この端末に保存した旅のプランです。</p>
+        </div>
+      </div>
+      <div id="trip-list" class="trip-grid"></div>
+    </section>
+
+    <section class="editor-view page" id="editor-view" hidden>
+      <div class="editor-top">
+        <div>
+          <p class="eyebrow">Plan your journey</p>
+          <h1 id="editor-title">新しい旅行</h1>
+          <p id="editor-subtitle">行き先と時間を入れて、旅の流れを作りましょう。</p>
+        </div>
+        <div class="editor-actions no-print">
+          <button class="btn btn-secondary" id="back-button" type="button">← 一覧へ</button>
+          <button class="btn btn-secondary" id="print-button" type="button">印刷</button>
+          <button class="btn btn-primary" id="refresh-button" type="button">予定表を更新</button>
+        </div>
+      </div>
+
+      <section class="panel trip-basics no-print" aria-labelledby="basics-title">
+        <div class="panel-title">
+          <h2 id="basics-title"><span class="step-label">1</span>旅の基本情報</h2>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="trip-title">旅行名 *</label>
+            <input id="trip-title" data-trip-field="title" maxlength="50" placeholder="例：京都、小さな秋旅">
+            <p class="field-error" id="trip-title-error"></p>
+          </div>
+          <div class="field">
+            <label for="trip-destination">主な目的地 *</label>
+            <input id="trip-destination" data-trip-field="destination" maxlength="100" placeholder="例：京都">
+            <p class="field-error" id="trip-destination-error"></p>
+          </div>
+          <div class="field">
+            <label for="trip-start-date">出発日 *</label>
+            <input id="trip-start-date" data-trip-field="startDate" type="date">
+            <p class="field-error" id="trip-start-date-error"></p>
+          </div>
+          <div class="field">
+            <label for="trip-end-date">帰着日 *</label>
+            <input id="trip-end-date" data-trip-field="endDate" type="date">
+            <p class="field-error" id="trip-end-date-error"></p>
+          </div>
+          <div class="field field-wide">
+            <label for="trip-memo">旅のメモ</label>
+            <textarea id="trip-memo" data-trip-field="memo" maxlength="500" placeholder="旅のテーマや、覚えておきたいこと"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <nav class="day-tabs no-print" id="day-tabs" aria-label="日付を選択"></nav>
+
+      <div class="workspace">
+        <section class="panel day-editor no-print" aria-labelledby="day-editor-title">
+          <div class="panel-title">
+            <h2 id="day-editor-title"><span class="step-label">2</span><span id="selected-day-label">1日目の予定</span></h2>
+          </div>
+          <div class="day-settings">
+            <div class="field">
+              <label for="day-start-time">一日の開始</label>
+              <input id="day-start-time" data-day-field="startTime" type="time">
+            </div>
+            <div class="field">
+              <label for="day-end-time">終了の目安</label>
+              <input id="day-end-time" data-day-field="targetEndTime" type="time">
+            </div>
+            <div class="field">
+              <label for="day-departure">出発地点</label>
+              <input id="day-departure" data-day-field="departurePoint" maxlength="100" placeholder="例：ホテル">
+            </div>
+          </div>
+          <div class="places-head">
+            <h3>立ち寄る場所</h3>
+            <button class="btn btn-soft" id="add-place-button" type="button">＋ 場所を追加</button>
+          </div>
+          <div class="places-list" id="places-list"></div>
+        </section>
+
+        <aside class="panel preview-panel" aria-labelledby="preview-title">
+          <div class="preview-head">
+            <p class="preview-kicker">Your timeline</p>
+            <h2 id="preview-title">タイムテーブル</h2>
+            <p id="preview-date">日付を選択してください</p>
+          </div>
+          <div class="warnings" id="warnings" aria-live="polite"></div>
+          <div class="timeline" id="timeline"></div>
+          <div class="preview-footer">
+            <span id="preview-count">予定 0件</span>
+            <span id="preview-duration">所要時間 0分</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="modal" id="place-dialog" aria-labelledby="place-dialog-title">
+    <form id="place-form">
+      <div class="modal-head">
+        <h2 id="place-dialog-title">場所を追加</h2>
+        <button class="icon-btn" id="close-place-dialog" type="button" aria-label="閉じる">×</button>
+      </div>
+      <div class="modal-body">
+        <input id="place-id" type="hidden">
+        <div class="modal-grid">
+          <div class="field field-wide">
+            <label for="place-name">場所・予定名 *</label>
+            <input id="place-name" maxlength="100" required placeholder="例：清水寺">
+            <p class="field-error" id="place-name-error"></p>
+          </div>
+          <div class="field">
+            <label for="place-category">カテゴリー</label>
+            <select id="place-category">
+              <option value="sightseeing">観光</option>
+              <option value="food">食事</option>
+              <option value="lodging">宿泊</option>
+              <option value="shopping">買い物</option>
+              <option value="transport">移動</option>
+              <option value="other">その他</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="place-location">住所・場所</label>
+            <input id="place-location" maxlength="200" placeholder="例：京都市東山区">
+          </div>
+          <div class="field">
+            <label for="place-duration">滞在時間（分） *</label>
+            <input id="place-duration" type="number" min="5" max="1440" step="5" value="60" required>
+          </div>
+          <div class="field">
+            <label for="place-travel">次の場所までの移動（分）</label>
+            <input id="place-travel" type="number" min="0" max="1440" step="5" value="0">
+          </div>
+          <label class="fixed-row">
+            <input id="place-is-fixed" type="checkbox">
+            <span>開始時刻を固定する</span>
+          </label>
+          <div class="field" id="fixed-time-field" hidden>
+            <label for="place-fixed-time">固定開始時刻 *</label>
+            <input id="place-fixed-time" type="time">
+          </div>
+          <div class="field field-wide">
+            <label for="place-memo">メモ</label>
+            <textarea id="place-memo" maxlength="500" placeholder="予約、見どころ、待ち合わせなど"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="cancel-place-button" type="button">キャンセル</button>
+        <button class="btn btn-primary" type="submit">予定に追加</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="confirm-dialog" aria-labelledby="confirm-title">
+    <div class="modal-head">
+      <h2 id="confirm-title">旅行を削除しますか？</h2>
+    </div>
+    <div class="modal-body">
+      <p class="confirm-copy" id="confirm-message">この操作は元に戻せません。</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="confirm-cancel" type="button">キャンセル</button>
+      <button class="btn btn-danger" id="confirm-ok" type="button">削除する</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script defer src="./main.js"></script>
+</body>
+</html>
